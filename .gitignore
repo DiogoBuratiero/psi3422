@@ -7,3 +7,8 @@
 *.png
 *.jpg
 
+# Exceção para qualquer .../include/...
+!**/include/*.png
+!**/include/*.avi
+!**/include/**/*.png
+!**/include/**/*.avi
