@@ -1,10 +1,7 @@
-// fase3p.cpp — versão paralela (OpenMP) de fase3.cpp
-// Lição de casa 1 da Aula 4: paralelizar os matchTemplate (CC e NCC) nas ~10 escalas
-// Compilar (sequencial):
-//   g++ -std=c++17 fase3p.cpp -o fase3p `pkg-config --cflags --libs opencv4`
-// Compilar (paralelo OpenMP):
-//   g++ -std=c++17 fase3p.cpp -o fase3p `pkg-config --cflags --libs opencv4` -fopenmp
-// Executar:  ./fase3p capturado.avi quadrado.png localiza.avi
+// fase3p.cpp — versão paralela (OpenMP) do fase3.cpp
+// Compilar (paralelo):   g++ -std=c++17 fase3p.cpp -o fase3p `pkg-config --cflags --libs opencv4` -fopenmp
+// Compilar (sequencial): g++ -std=c++17 fase3p.cpp -o fase3p `pkg-config --cflags --libs opencv4`
+// Executar:              ./fase3p capturado.avi quadrado.png localiza.avi
 
 #include "projeto.hpp"
 #include <opencv2/opencv.hpp>
@@ -110,13 +107,13 @@ static void drawCandidates(Mat &dst, const vector<Cand> &cands,
   {
     Rect roi(p.c - templSizes[p.k].width / 2, p.l - templSizes[p.k].height / 2,
              templSizes[p.k].width, templSizes[p.k].height);
-    rectangle(dst, roi, Scalar(255, 200, 0), 1, LINE_AA); // ciano/azul claro
+    rectangle(dst, roi, Scalar(255, 200, 0), 1, LINE_AA);
   }
   if (best)
   {
     Rect roi(best->c - templSizes[best->k].width / 2, best->l - templSizes[best->k].height / 2,
              templSizes[best->k].width, templSizes[best->k].height);
-    rectangle(dst, roi, Scalar(0, 255, 255), 2, LINE_AA); // amarelo
+    rectangle(dst, roi, Scalar(0, 255, 255), 2, LINE_AA);
     char text[128];
     std::snprintf(text, sizeof(text), "s=%d  CC=%.2f  NCC=%.2f", best->k, best->cc, best->ncc);
     putText(dst, text, Point(8, 24), FONT_HERSHEY_SIMPLEX, 0.6, Scalar(0, 0, 0), 2, LINE_AA);
@@ -160,9 +157,11 @@ try
   const char *tpath = argv[2];
   const char *vout = argv[3];
 
-  cv::setNumThreads(1);
-
 #ifdef _OPENMP
+  // Evita competição com o "threading" interno do OpenCV
+  cv::setNumThreads(1);
+  // Opcional: fixe o número de threads aqui ou via OMP_NUM_THREADS
+  // omp_set_num_threads( std::max(1, omp_get_max_threads()) );
 #endif
 
   // ---- abre vídeo 240x320 (entrada) e prepara saída ----
@@ -179,14 +178,14 @@ try
   if (!vo.isOpened())
     erro("Erro: abertura de VideoWriter para saída");
 
-  // ---- lê modelo e prepara “don’t care” (pixels 1.0) + somaAbsDois ----
+  // ---- lê modelo e prepara “don’t care” + somaAbsDois ----
   Mat_<COR> tempColor = imread(tpath, 1);
   if (tempColor.total() == 0)
     erro("Erro leitura do modelo (quadrado.png)");
   Mat_<FLT> Tfloat;
   converte(tempColor, Tfloat); // BGR->cinza float [0..1]
 
-  // ---- 10 escalas geométricas (ex.: 69→19 px como na apostila) ----
+  // ---- 10 escalas geométricas (ex.: 69→19 px) ----
   const int NS = 10;
   double s_max = 69.0 / Tfloat.cols;
   double s_min = 19.0 / Tfloat.cols;
@@ -195,12 +194,14 @@ try
   vector<Mat_<FLT>> Tcc(NS), Tncc(NS);
   vector<Size> Tsize(NS);
 
-// Pré-processamento de modelos por escala — Paralelo
-// Cada iteração usa apenas variáveis locais/cópias e escreve em índices distintos (thread-safe)
-#pragma omp parallel for if (NS > 1)
+// PRÉ-PROCESSAMENTO EM PARALELO (independente por escala)
+// - resize com INTER_NEAREST (preserva "1.0" do don't care)
+// - CC: somaAbsDois(dcReject(Tr, 1.0f))
+// - NCC: cópia direta do template escalado
+#pragma omp parallel for schedule(static)
   for (int i = 0; i < NS; ++i)
   {
-    Mat_<FLT> Tr; // local a cada thread
+    Mat_<FLT> Tr;
     resize(Tfloat, Tr, Size(), S[i], S[i], INTER_NEAREST);
     Tsize[i] = Tr.size();
     Tcc[i] = somaAbsDois(dcReject(Tr, 1.0f)); // CC com “don’t care”
@@ -228,34 +229,26 @@ try
       tmp.copyTo(a);
     }
 
-    // converte para float cinza
     converte(a, f);
 
-// (1) CC em todas as escalas (modo SAME) — Paralelo
-#pragma omp parallel for if (NS > 1)
+// (1) CC em todas as escalas (modo SAME) — PARALELO
+#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < NS; ++i)
     {
       Rcc[i] = matchTemplateSame(f, Tcc[i], TM_CCORR, 0.0f);
     }
 
-    // (2) top-20 picos CC
+    // (2) top-20 picos CC (serial — depende dos mapas completos)
     vector<Cand> cands = topKWithSeparation(Rcc, Tsize, /*K=*/20, /*minDist=*/10);
 
-    // (3) NCC apenas nas escalas presentes entre os 20 candidatos (como na apostila)
-    // Em vez de calcular NCC para TODAS as escalas, calculamos só para as que tiveram pico em CC.
-    std::vector<char> need(NS, 0);
-    for (auto &p : cands)
-      need[p.k] = 1;
-
-#pragma omp parallel for if (NS > 1)
+// (3) NCC nas mesmas escalas (modo SAME) — PARALELO
+#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < NS; ++i)
     {
-      if (!need[i])
-        continue;
       Rncc[i] = matchTemplateSame(f, Tncc[i], TM_CCOEFF_NORMED, 0.0f);
     }
 
-    // Seleciona melhor candidato pela maior NCC nas posições candidatas
+    // Seleção do melhor candidato via NCC (serial — redução simples)
     Cand best;
     bool found = false;
     for (auto &p : cands)
@@ -269,7 +262,7 @@ try
       }
     }
 
-    // (4) decisão (threshold NCC)
+    // (4) decisão
     const float THRESH_NCC = 0.55f;
     out = a.clone();
     if (found && best.ncc >= THRESH_NCC)
@@ -280,7 +273,6 @@ try
     vo << out;
     frames++;
 
-    // ---- Barra de progresso / Spinner ----
     if (totalFrames > 0)
       printProgressBar(frames, totalFrames);
     else
@@ -290,7 +282,6 @@ try
   double t2 = nowSec();
   double dt = std::max(1e-9, t2 - t1);
 
-  // Finaliza linha da barra e imprime FPS
   if (totalFrames > 0)
   {
     std::fprintf(stderr, "\r");
