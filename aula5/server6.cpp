@@ -1,13 +1,13 @@
-// servidor6.cpp — Executa comandos enviados pelo cliente6 (dígitos em placas)
+// servidor6.cpp — Executa comandos enviados pelo cliente6 (mesmo protocolo do server4)
 // Uso: ./servidor6
 
 #include "projeto.hpp"
 #include <opencv2/opencv.hpp>
+
 #include <wiringPi.h>
 #include <softPwm.h>
-#include <chrono>
-#include <cstdint>
 #include <iostream>
+#include <cstdint>
 
 // ---------------- PWM (ajuste se seus pinos forem outros) ----------------
 static constexpr int R_REV = 0;
@@ -23,6 +23,8 @@ static inline void stopAll()
   softPwmWrite(R_FWD, 0);
   softPwmWrite(R_REV, 0);
 }
+
+static constexpr int PWM_BALANCE = 0.8;
 
 // seta uma roda: dir = +1 (frente), -1 (ré), 0 (parada)
 static inline void setLeft(int dir, int pwm)
@@ -63,89 +65,69 @@ static inline void setRight(int dir, int pwm)
 }
 
 // ganhos/escala
-static constexpr int PWM_MAX = 100;
-static constexpr float PWM_BALANCE = 1.7f; // ajuste fino para compensar lado direito
+static constexpr int PWM_HIGH = 90;
+static constexpr int PWM_LOW = 0;
 
-static inline double nowSec()
+// --------- comandos antigos (compatibilidade com override) ----------
+static void applyCommand(char cmd)
 {
-  using clock = std::chrono::steady_clock;
-  return std::chrono::duration<double>(clock::now().time_since_epoch()).count();
-}
-
-enum class Action
-{
-  Stop,
-  Forward,
-  SpinLeft,
-  SpinRight
-};
-
-struct Motion
-{
-  Action act = Action::Stop;
-  double until = 0.0; // timestamp absoluto (segundos)
-};
-
-static void applyMotion(const Motion &m, int pwmFwd, int pwmTurn)
-{
-  switch (m.act)
+  switch (cmd)
   {
-  case Action::Forward:
-    setLeft(+1, pwmFwd);
-    setRight(+1, int(std::round(PWM_BALANCE * pwmFwd)));
+  case '7':
+    setLeft(-1, PWM_LOW);
+    setRight(+1, PWM_HIGH);
     break;
-  case Action::SpinLeft:
-    setLeft(-1, pwmTurn);
-    setRight(+1, int(std::round(PWM_BALANCE * pwmTurn)));
+  case '8':
+    setLeft(+1, PWM_HIGH);
+    setRight(+1, PWM_HIGH);
     break;
-  case Action::SpinRight:
-    setLeft(+1, pwmTurn);
-    setRight(-1, int(std::round(PWM_BALANCE * pwmTurn)));
+  case '9':
+    setLeft(+1, PWM_HIGH);
+    setRight(-1, PWM_LOW);
     break;
-  case Action::Stop:
+  case '4':
+    setLeft(-1, PWM_HIGH);
+    setRight(+1, PWM_HIGH);
+    break;
+  case '6':
+    setLeft(+1, PWM_HIGH);
+    setRight(-1, PWM_HIGH);
+    break;
+  case '1':
+    setLeft(-1, PWM_LOW);
+    setRight(-1, PWM_HIGH);
+    break;
+  case '2':
+    setLeft(-1, PWM_HIGH);
+    setRight(-1, PWM_HIGH);
+    break;
+  case '3':
+    setLeft(-1, PWM_HIGH);
+    setRight(-1, PWM_LOW);
+    break;
+  case '5': // fall-through
+  case '0': // fall-through
   default:
     stopAll();
     break;
   }
 }
 
-static Motion motionFromCommand(char cmd, double now,
-                                double durForward, double dur90, double dur180)
+// --------- novo: aplica modo analógico contínuo (-100..+100) ----------
+static inline int clamp100(int v) { return std::max(-100, std::min(100, v)); }
+static void applyAnalog(int8_t l, int8_t r)
 {
-  Motion m;
-  switch (cmd)
-  {
-  case '4':
-  case '5': // seguir em frente sob a placa
-    m.act = Action::Forward;
-    m.until = now + durForward;
-    break;
-  case '6':
-  case '7': // 90 esq
-    m.act = Action::SpinLeft;
-    m.until = now + dur90;
-    break;
-  case '8':
-  case '9': // 90 dir
-    m.act = Action::SpinRight;
-    m.until = now + dur90;
-    break;
-  case '2': // 180 esq
-    m.act = Action::SpinLeft;
-    m.until = now + dur180;
-    break;
-  case '3': // 180 dir
-    m.act = Action::SpinRight;
-    m.until = now + dur180;
-    break;
-  case '0':
-  case '1':
-  default:
-    m.act = Action::Stop;
-    m.until = now;
-    break;
-  }
-  return m;
+  int li = clamp100((int)l);
+  int ri = clamp100((int)r);
+
+  int ldir = (li > 0) - (li < 0);
+  int rdir = (ri > 0) - (ri < 0);
+
+  int lpwm = std::min(PWM_HIGH, std::abs(li));
+  int rpwm = std::min(PWM_HIGH, std::abs(ri));
+
+  setLeft(ldir, lpwm);
+  setRight(rdir, rpwm);
 }
 
 int main()
@@ -174,17 +156,13 @@ int main()
 
   Mat_<COR> frame;
 
-  // parâmetros de movimento (ajuste fino conforme seu robô)
-  const int PWM_FWD = 80;
-  const int PWM_TURN = 90;
-  const double DUR_FORWARD = 1.0; // segundos
-  const double DUR_TURN_90 = 0.65;
-  const double DUR_TURN_180 = 1.25;
+  // estado do último comando recebido (aplicado no início de cada iteração)
+  char lastMode = 'K'; // 'K' = comandos 1 byte (teclas), 'A' = analógico
+  char lastKey = '0';
+  int8_t lastL = 0;
+  int8_t lastR = 0;
 
-  Motion motion{Action::Stop, 0.0};
-  char lastCmd = '0';
-
-  // handshake inicial compatível
+  // handshake inicial (compatível)
   BYTE first;
   s.receiveBytes(1, &first);
   if (first == 's')
@@ -192,21 +170,30 @@ int main()
     stopAll();
     return 0;
   }
-  lastCmd = (char)first;
-  motion = motionFromCommand(lastCmd, nowSec(), DUR_FORWARD, DUR_TURN_90, DUR_TURN_180);
+  // interpreta primeiro byte como tecla, se não for 'A'
+  if (first == 'A')
+  {
+    BYTE lr[2];
+    s.receiveBytes(2, lr);
+    lastMode = 'A';
+    lastL = (int8_t)lr[0];
+    lastR = (int8_t)lr[1];
+  }
+  else
+  {
+    lastMode = 'K';
+    lastKey = (char)first;
+  }
 
   while (true)
   {
-    double tnow = nowSec();
-    if (tnow >= motion.until)
-    {
-      motion.act = Action::Stop;
-      motion.until = tnow;
-    }
+    // (1) aplica o último comando
+    if (lastMode == 'A')
+      applyAnalog(lastL, lastR);
+    else
+      applyCommand(lastKey);
 
-    applyMotion(motion, PWM_FWD, PWM_TURN);
-
-    // captura e envia
+    // (2) captura, envia compactado
     cv::Mat raw;
     cap >> raw;
     if (raw.empty())
@@ -217,18 +204,27 @@ int main()
     raw.copyTo(frame);
     s.sendImgComp(frame);
 
-    // recebe próximo comando
+    // (3) recebe próximo comando (cabeçalho de 1 byte)
     BYTE hdr;
-    s.receiveBytes(1, &hdr);
+    s.receiveBytes(1, &hdr); // <-- apenas chama; não retorna bool
+
     if (hdr == 's')
     {
       break;
     }
-
-    lastCmd = (char)hdr;
-    motion = motionFromCommand(lastCmd, nowSec(), DUR_FORWARD, DUR_TURN_90, DUR_TURN_180);
-
-    std::cerr << "Cmd=" << lastCmd << " ate " << motion.until << "\n";
+    else if (hdr == 'A')
+    {
+      BYTE lr[2];
+      s.receiveBytes(2, lr);
+      lastMode = 'A';
+      lastL = (int8_t)lr[0];
+      lastR = (int8_t)lr[1];
+    }
+    else
+    {
+      lastMode = 'K';
+      lastKey = (char)hdr;
+    }
   }
 
   stopAll();
