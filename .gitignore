@@ -6,6 +6,7 @@
 *.avi
 *.png
 *.jpg
+*.mp4
 
 # Exceção para qualquer .../include/...
 !**/include/*.png
