@@ -26,57 +26,30 @@ using cv::Vec3b;
 using cv::VideoWriter;
 using cv::VideoCapture;
 
-// ---------- util: checagem/baixar MNIST ----------
+// ---------- util: checagem MNIST ----------
 static bool fileExists(const string &p)
 {
   struct stat st;
   return stat(p.c_str(), &st) == 0 && S_ISREG(st.st_mode);
 }
 
-// Tenta baixar via wget ou curl; retorna true se arquivo final existir
 static bool ensureMnistFiles(const string &dir)
 {
-  struct Item
+  const vector<string> files = {
+      "train-images.idx3-ubyte",
+      "train-labels.idx1-ubyte",
+      "t10k-images.idx3-ubyte",
+      "t10k-labels.idx1-ubyte"};
+  bool ok = true;
+  for (const auto &f : files)
   {
-    string name;
-    string url;
-  };
-  const vector<Item> todo = {
-      {"train-images.idx3-ubyte", "http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz"},
-      {"train-labels.idx1-ubyte", "http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz"},
-      {"t10k-images.idx3-ubyte", "http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz"},
-      {"t10k-labels.idx1-ubyte", "http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz"}};
-
-  bool allOk = true;
-  for (const auto &it : todo)
-  {
-    string path = dir + "/" + it.name;
-    if (fileExists(path))
-      continue;
-
-    std::cerr << "MNIST: baixando " << it.name << "...\n";
-    string gzPath = path + ".gz";
-    string cmd = "wget -q -O '" + gzPath + "' '" + it.url +
-                 "' || curl -L -s -o '" + gzPath + "' '" + it.url + "'";
-    if (std::system(cmd.c_str()) != 0)
+    if (!fileExists(dir + "/" + f))
     {
-      std::cerr << "MNIST: falha ao baixar " << it.name << "\n";
-      allOk = false;
-      continue;
-    }
-    if (std::system(("gzip -df '" + gzPath + "'").c_str()) != 0)
-    {
-      std::cerr << "MNIST: falha ao descompactar " << gzPath << "\n";
-      allOk = false;
-      continue;
-    }
-    if (!fileExists(path))
-    {
-      std::cerr << "MNIST: arquivo " << path << " continua ausente.\n";
-      allOk = false;
+      std::cerr << "MNIST faltando: " << dir << "/" << f << "\n";
+      ok = false;
     }
   }
-  return allOk;
+  return ok;
 }
 
 // ---------- util: tempo em segundos ----------
@@ -224,6 +197,137 @@ static optional<DigitDetection> detectDigit(const Mat_<COR> &roi, const Rect &ro
   return best;
 }
 
+// ---------- Estado do "teclado" por cursor (cliente4) ----------
+static int g_pressed = 0; // 0 nada; 1..9 enquanto cursor pressionado na célula
+static bool g_mouseDown = false;
+static int g_cols = 320, g_rows = 240;
+
+// Mapa numpad (teclado à ESQUERDA, câmera à DIREITA)
+static const int kmap[3][3] = {{7, 8, 9}, {4, 5, 6}, {1, 2, 3}};
+
+static inline int key_at_xy_on_keyboard(int x, int y)
+{
+  const int cellW = g_cols / 3, cellH = g_rows / 3;
+  if (x < 0 || x >= g_cols || y < 0 || y >= g_rows)
+    return 0;
+  int c = x / cellW, l = y / cellH;
+  if (0 <= l && l < 3 && 0 <= c && c < 3)
+    return kmap[l][c];
+  return 0;
+}
+
+static void on_mouse(int event, int x, int y, int /*flags*/, void *)
+{
+  const bool sobreTeclado = (x >= 0 && x < g_cols && y >= 0 && y < g_rows);
+  if (event == cv::EVENT_LBUTTONDOWN)
+  {
+    g_mouseDown = true;
+    g_pressed = sobreTeclado ? key_at_xy_on_keyboard(x, y) : 0;
+  }
+  else if (event == cv::EVENT_MOUSEMOVE)
+  {
+    if (g_mouseDown)
+      g_pressed = sobreTeclado ? key_at_xy_on_keyboard(x, y) : 0;
+  }
+  else if (event == cv::EVENT_LBUTTONUP)
+  {
+    g_mouseDown = false;
+    g_pressed = 0;
+  }
+}
+
+static cv::Mat makeKeyboard(int w, int h, int activeKey)
+{
+  using namespace cv;
+  Mat kb(h, w, CV_8UC3, Scalar(55, 55, 55));
+  const int cellW = w / 3, cellH = h / 3;
+  const int gridT = std::max(1, std::min(cellW, cellH) / 90);
+  const int thick = std::max(2, std::min(cellW, cellH) / 18);
+  const int thickActive = thick + std::max(1, thick / 2);
+  const double tip = 0.25;
+  const Scalar gridCol(90, 90, 90), arrowColBase(0, 0, 150), arrowColActive(0, 0, 255), arrowColStrongBase(0, 0, 200);
+
+  for (int r = 0; r < 3; ++r)
+    for (int c = 0; c < 3; ++c)
+      rectangle(kb, Rect(c * cellW, r * cellH, cellW, cellH), gridCol, gridT);
+
+  auto cellRC = [&](int r, int c)
+  { return Rect(c * cellW, r * cellH, cellW, cellH); };
+  auto center = [&](const Rect &rc)
+  { return cv::Point(rc.x + rc.width / 2, rc.y + rc.height / 2); };
+  auto isActive = [&](int v)
+  { return activeKey == v; };
+  const int m = std::min(cellW, cellH) / 5;
+
+  auto arrow = [&](cv::Point p1, cv::Point p2, bool strong, bool active)
+  {
+    const Scalar col = active ? arrowColActive : (strong ? arrowColStrongBase : arrowColBase);
+    const int tk = active ? thickActive : thick;
+    arrowedLine(kb, p1, p2, col, tk, LINE_AA, 0, tip);
+  };
+  auto lineSeg = [&](cv::Point p1, cv::Point p2, bool active)
+  {
+    const Scalar col = active ? arrowColActive : arrowColBase;
+    const int tk = active ? thickActive : thick;
+    line(kb, p1, p2, col, tk, LINE_AA);
+  };
+
+  // 8
+  {
+    auto rc = cellRC(0, 1);
+    auto c0 = center(rc);
+    arrow({c0.x, c0.y + m}, {c0.x, c0.y - m}, false, isActive(8));
+  }
+  // 2
+  {
+    auto rc = cellRC(2, 1);
+    auto c0 = center(rc);
+    arrow({c0.x, c0.y - m}, {c0.x, c0.y + m}, false, isActive(2));
+  }
+  // 7,9
+  {
+    auto rc = cellRC(0, 0);
+    auto c0 = center(rc);
+    arrow({int(c0.x + m * 0.7), int(c0.y + m * 0.7)}, {int(c0.x - m * 0.7), int(c0.y - m * 0.7)}, false, isActive(7));
+    rc = cellRC(0, 2);
+    c0 = center(rc);
+    arrow({int(c0.x - m * 0.7), int(c0.y + m * 0.7)}, {int(c0.x + m * 0.7), int(c0.y - m * 0.7)}, false, isActive(9));
+  }
+  // 1,3
+  {
+    auto rc = cellRC(2, 0);
+    auto c0 = center(rc);
+    arrow({int(c0.x + m * 0.7), int(c0.y - m * 0.7)}, {int(c0.x - m * 0.7), int(c0.y + m * 0.7)}, false, isActive(1));
+    rc = cellRC(2, 2);
+    c0 = center(rc);
+    arrow({int(c0.x - m * 0.7), int(c0.y - m * 0.7)}, {int(c0.x + m * 0.7), int(c0.y + m * 0.7)}, false, isActive(3));
+  }
+  // 4
+  {
+    auto rc = cellRC(1, 0);
+    auto c0 = center(rc);
+    lineSeg({c0.x, c0.y + m}, {c0.x, c0.y - m / 3}, isActive(4));
+    arrow({c0.x, c0.y - m / 3}, {c0.x - m, c0.y - m / 3}, false, isActive(4));
+  }
+  // 6
+  {
+    auto rc = cellRC(1, 2);
+    auto c0 = center(rc);
+    lineSeg({c0.x, c0.y + m}, {c0.x, c0.y - m / 3}, isActive(6));
+    arrow({c0.x, c0.y - m / 3}, {c0.x + m, c0.y - m / 3}, false, isActive(6));
+  }
+  // 5
+  {
+    auto rc = cellRC(1, 1);
+    auto c0 = center(rc);
+    int r = std::max(3, std::min(cellW, cellH) / 18);
+    circle(kb, c0, r, isActive(5) ? arrowColActive : arrowColBase, cv::FILLED, cv::LINE_AA);
+  }
+
+  cv::putText(kb, "ESC = sair", {10, h - 8}, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 200, 255), 1, cv::LINE_AA);
+  return kb;
+}
+
 int main(int argc, char *argv[])
 {
   if (argc < 2 || argc > 4)
@@ -242,13 +346,14 @@ int main(int argc, char *argv[])
   CLIENT c(ip);
 
   // ---------- Inicializa MNIST ----------
+  const string mnistDir = "include/mnist";
   MnistFlann mnist(28, true, true, "flann");
   bool mnistReady = false;
   try
   {
-    if (!ensureMnistFiles("."))
+    if (!ensureMnistFiles(mnistDir))
       throw std::runtime_error("Arquivos MNIST ausentes ou download falhou");
-    mnist.le(".", 60000, 0); // só base de treino
+    mnist.le(mnistDir, 60000, 0); // só base de treino
     mnist.train();
     mnistReady = true;
     std::cerr << "MNIST carregado e indexado (FLANN KDTree)\n";
@@ -260,6 +365,7 @@ int main(int argc, char *argv[])
   }
 
   cv::namedWindow("cliente6", cv::WINDOW_AUTOSIZE);
+  cv::setMouseCallback("cliente6", on_mouse);
 
   // manda parada inicial para sincronizar
   {
@@ -308,11 +414,32 @@ int main(int argc, char *argv[])
   int lastPred = -1, stableCount = 0, missFrames = 0;
   char activeCmd = '0';
   double cmdUntil = 0.0;
+  auto commandDuration = [&](char cmd) -> double
+  {
+    switch (cmd)
+    {
+    case '4':
+    case '5':
+      return DUR_FORWARD;
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+      return DUR_TURN_90;
+    case '2':
+    case '3':
+      return DUR_TURN_180;
+    default:
+      return 0.0;
+    }
+  };
 
   while (true)
   {
     Mat_<COR> cam;
     c.receiveImgComp(cam);
+    g_cols = cam.cols;
+    g_rows = cam.rows;
 
     // ---------- Localização da placa ----------
     Mat_<FLT> f;
@@ -376,42 +503,34 @@ int main(int argc, char *argv[])
       activeCmd = '0';
     }
 
-    if (det && stableCount >= STABLE_FRAMES && pred != -1 && pred != (activeCmd - '0'))
+    char nextCmd = 0;
+    double nextDur = 0.0;
+    bool manualOverride = false;
+    if (g_pressed >= 1 && g_pressed <= 9)
     {
-      char cmd = char('0' + pred);
-      double dur = 0.0;
-      switch (cmd)
-      {
-      case '4':
-      case '5':
-        dur = DUR_FORWARD;
-        break;
-      case '6':
-      case '7':
-      case '8':
-      case '9':
-        dur = DUR_TURN_90;
-        break;
-      case '2':
-      case '3':
-        dur = DUR_TURN_180;
-        break;
-      default:
-        dur = 0.0;
-        break;
-      }
-
-      BYTE b = (BYTE)cmd;
-      c.sendBytes(1, &b);
-      activeCmd = cmd;
-      cmdUntil = now + dur;
-      std::cerr << "Cmd=" << cmd << " dur=" << dur << "s\n";
+      nextCmd = char('0' + g_pressed);
+      nextDur = commandDuration(nextCmd);
+      manualOverride = true;
+    }
+    else if (det && stableCount >= STABLE_FRAMES && pred != -1 && pred != (activeCmd - '0'))
+    {
+      nextCmd = char('0' + pred);
+      nextDur = commandDuration(nextCmd);
     }
     else if (!det && missFrames > 20 && activeCmd != '0')
     {
       BYTE stop = '0';
       c.sendBytes(1, &stop);
       activeCmd = '0';
+    }
+
+    if (nextCmd)
+    {
+      BYTE b = (BYTE)nextCmd;
+      c.sendBytes(1, &b);
+      activeCmd = nextCmd;
+      cmdUntil = now + nextDur;
+      std::cerr << (manualOverride ? "Manual" : "Auto") << " cmd=" << nextCmd << " dur=" << nextDur << "s\n";
     }
 
     // ---------- HUD ----------
@@ -442,17 +561,20 @@ int main(int argc, char *argv[])
       cv::putText(tela, hud, {8, 24}, cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 255), 1, cv::LINE_AA);
     }
 
-    cv::imshow("cliente6", (mode == 'c' ? Mat(cam) : tela));
+    cv::Mat kb = makeKeyboard(cam.cols, cam.rows, (g_pressed >= 1 && g_pressed <= 9) ? g_pressed : 0);
+    cv::Mat view;
+    cv::hconcat(kb, (mode == 'c' ? Mat(cam) : tela), view);
+    cv::imshow("cliente6", view);
 
     if (outName && !wrOpen)
     {
-      wr.open(outName, fourcc, fpsHint, (mode == 'c' ? cam.size() : tela.size()), true);
+      wr.open(outName, fourcc, fpsHint, view.size(), true);
       if (!wr.isOpened())
         erro("Falha ao abrir VideoWriter");
       wrOpen = true;
     }
     if (wrOpen)
-      wr << (mode == 'c' ? Mat(cam) : tela);
+      wr << view;
 
     int ch = cv::waitKey(1) & 0xFF;
     if (ch == 27) // ESC
@@ -466,7 +588,7 @@ int main(int argc, char *argv[])
       BYTE b = (BYTE)ch;
       c.sendBytes(1, &b);
       activeCmd = ch;
-      cmdUntil = nowSec(); // manda manual, deixa parado até próximo
+      cmdUntil = nowSec() + commandDuration(ch);
       std::cerr << "Manual cmd=" << ch << "\n";
     }
 
