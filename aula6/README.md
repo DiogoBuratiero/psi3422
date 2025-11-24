@@ -21,7 +21,7 @@ O carrinho recebe:
     -   Recebe comandos do cliente (teclado, controle analógico, scripts de dígitos).
     -   Captura vídeo da câmera, compacta e envia para o cliente.
 
--   **`client7.cpp`** (comentários internos como `cliente4.cpp`) – Cliente que roda no PC:
+-   **`client7.cpp`** – Cliente que roda no PC:
 
     -   Recebe o vídeo do Raspberry.
     -   Desenha o teclado visual e a imagem da câmera lado a lado.
@@ -111,7 +111,7 @@ O carrinho recebe:
 ### Conexão e handshake
 
 1. O servidor (`SERVER`) abre um socket TCP, aguarda conexão e inicializa PWM e câmera.
-2. O cliente (`CLIENT`) conecta ao IP do Raspberry e cria a janela `cliente4`.
+2. O cliente (`CLIENT`) conecta ao IP do Raspberry e cria a janela `client7`.
 3. Handshake inicial:
     - O cliente envia 1 byte (`'0'` na versão atual).
     - O servidor:
@@ -229,7 +229,7 @@ compila client7 -ocv -v3 -omp
 2. **No PC (cliente)**
 
     ```bash
-    ./cliente4 <ip_raspberry> [saida.avi] [t/c]
+    ./cliente7 <ip_raspberry> [saida.avi] [t/c]
     ```
 
     - `ip_raspberry`: endereço IP do Raspberry Pi.
