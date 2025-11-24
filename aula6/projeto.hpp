@@ -1,3 +1,9 @@
+// projeto.hpp - classes DEVICE, SERVER, CLIENT
+
+// Este código foi desenvolvido com o auxílio de ferramentas de Inteligência Artificial
+// para geração de texto, revisão, estruturação e otimização.
+// Todo o conteúdo foi verificado, ajustado e validado manualmente pelos autores.
+
 #pragma once
 #include "raspberry.hpp" // precisa ter BYTE (uint8_t), erro(), etc.
 // Se seu raspberry.hpp não define BYTE, descomente as 2 linhas abaixo:
@@ -117,7 +123,7 @@ public:
   {
     if (!img.isContinuous())
       erro("sendImgComp: imagem nao-contigua (evite ROI)");
-    // Compacta com qualidade 80 
+    // Compacta com qualidade 80
     std::vector<uchar> vb;
     std::vector<int> params{cv::IMWRITE_JPEG_QUALITY, 80};
     if (!cv::imencode(".jpg", img, vb, params))
@@ -231,7 +237,7 @@ public:
     }
   }
 
-  // IMPLEMENTAÇÕES CONCRETAS 
+  // IMPLEMENTAÇÕES CONCRETAS
   void sendBytes(int nBytesToSend, BYTE *buf) override
   {
     if (new_fd == -1)

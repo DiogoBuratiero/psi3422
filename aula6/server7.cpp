@@ -1,3 +1,11 @@
+// server7.cpp — Servidor com controle por "teclado de mouse" (override) + modo analógico contínuo
+// Uso:   ./server7
+// Comp.: compila server7 -ocv -v3
+
+// Este código foi desenvolvido com o auxílio de ferramentas de Inteligência Artificial
+// para geração de texto, revisão, estruturação e otimização.
+// Todo o conteúdo foi verificado, ajustado e validado manualmente pelos autores.
+
 #include "projeto.hpp"
 #include <opencv2/opencv.hpp>
 

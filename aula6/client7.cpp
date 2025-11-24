@@ -1,6 +1,10 @@
-// cliente4.cpp — Cliente com controle por "teclado de mouse" (override) + seguir quadrado.png
-// Uso:   ./cliente4 <ip_raspberry> [videosaida.avi] [t/c]
-// Comp.: g++ -std=c++17 cliente4.cpp -o cliente4 `pkg-config --cflags --libs opencv4` -fopenmp
+// client7.cpp — Cliente com controle por "teclado de mouse" (override) + seguir quadrado.png
+// Uso:   ./client7 <ip_raspberry> [videosaida.avi] [t/c]
+// Comp.: compila client7 -ocv -v3 -omp
+
+// Este código foi desenvolvido com o auxílio de ferramentas de Inteligência Artificial
+// para geração de texto, revisão, estruturação e otimização.
+// Todo o conteúdo foi verificado, ajustado e validado manualmente pelos autores.
 
 #include "projeto.hpp"
 #include <opencv2/opencv.hpp>
@@ -16,7 +20,7 @@
 using std::vector;
 
 // ---------- Estado do "teclado" por cursor ----------
-static int g_pressed = 0; 
+static int g_pressed = 0;
 static bool g_mouseDown = false;
 static int g_cols = 320, g_rows = 240;
 
@@ -330,7 +334,7 @@ int main(int argc, char *argv[])
 {
   if (argc < 2 || argc > 4)
   {
-    std::cerr << "uso: cliente4 servidorIp [videosaida.avi] [t/c]\n";
+    std::cerr << "uso: client7 servidorIp [videosaida.avi] [t/c]\n";
     return 1;
   }
   const char *ip = argv[1];
@@ -342,8 +346,8 @@ int main(int argc, char *argv[])
 #endif
 
   CLIENT c(ip);
-  cv::namedWindow("cliente4", cv::WINDOW_AUTOSIZE);
-  cv::setMouseCallback("cliente4", on_mouse);
+  cv::namedWindow("client7", cv::WINDOW_AUTOSIZE);
+  cv::setMouseCallback("client7", on_mouse);
 
   {
     BYTE start = '0';
@@ -356,7 +360,7 @@ int main(int argc, char *argv[])
   std::printf("MNIST carregado: %d amostras de treino.\n", mnist.na);
 
   // ---------- Carrega modelo ----------
-  Mat_<COR> tempColor = imread("include/quadrado.png", 1); 
+  Mat_<COR> tempColor = imread("include/quadrado.png", 1);
   if (tempColor.total() == 0)
     erro("Erro: nao encontrou quadrado.png");
   Mat_<FLT> Tfloat;
@@ -391,7 +395,6 @@ int main(int argc, char *argv[])
   const int DIGIT_STABLE_FRAMES = 4;
   const int DIGIT_REARM_FRAMES = 10;
   const float STEER_DEADZONE = 0.14f;
-
 
   // Velocidade de avanço diminui com o tamanho do alvo
   const int V_FWD_MIN = 20; // 0..100
@@ -484,11 +487,10 @@ int main(int argc, char *argv[])
 
       // 2) ganho de esterço decresce com o tamanho
       float K_STEER_GAIN = (1.0f - alpha) * K_STEER_MAX + alpha * K_STEER_MIN;
-      float steer = K_STEER_GAIN * ex; 
+      float steer = K_STEER_GAIN * ex;
 
       if (std::fabs(ex) < STEER_DEADZONE)
-          steer = 0.0f;
-
+        steer = 0.0f;
 
       // 3) compor L/R (sem ré automática por padrão)
       float lf = vbase + steer;
@@ -507,17 +509,17 @@ int main(int argc, char *argv[])
       // 4) suavização EMA dependente do tamanho
       // beta = fração "nova". Pequeno (longe) → mais responsivo; Grande (perto) → mais amortecido.
       float beta_small = 0.8f; // responsivo
-      float beta_big = 0.15f;   // suave
+      float beta_big = 0.15f;  // suave
       float beta = (1.0f - alpha) * beta_small + alpha * beta_big;
 
       lFilt = (1.0f - beta) * lFilt + beta * li;
       rFilt = (1.0f - beta) * rFilt + beta * ri;
 
-      L = (int8_t)clamp100((int)std::round(lFilt*1.1));
+      L = (int8_t)clamp100((int)std::round(lFilt * 1.1));
       R = (int8_t)clamp100((int)std::round(rFilt));
 
-        printf("frac=%.3f alpha=%.3f vbase=%.1f K=%.2f ex=%.3f => L=%d R=%d\n",
-               frac, alpha, vbase, K_STEER_GAIN, ex, L, R);
+      printf("frac=%.3f alpha=%.3f vbase=%.1f K=%.2f ex=%.3f => L=%d R=%d\n",
+             frac, alpha, vbase, K_STEER_GAIN, ex, L, R);
 
       bool nearDigit = (plateRect.width > 0 && plateRect.height > 0 && frac >= FRAC_DIGIT_NEAR);
       if (nearDigit)
@@ -648,7 +650,7 @@ int main(int argc, char *argv[])
     cv::Mat kb = makeKeyboard(cam.cols, cam.rows, overrideOn ? g_pressed : 0);
     cv::Mat view;
     cv::hconcat(kb, (mode == 'c' ? cv::Mat(cam) : telaCam), view);
-    cv::imshow("cliente4", view);
+    cv::imshow("client7", view);
 
     if (outName && !wrOpen)
     {

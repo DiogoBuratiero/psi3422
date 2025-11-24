@@ -1,9 +1,13 @@
 # Carrinho Raspberry Pi com Seguimento Visual e Dígitos Manuscritos
 
+<div style="border-left: 4px solid #f39c12; background:#fff7e6; padding:12px 16px; margin:12px 0; font-family:Arial, sans-serif; font-size:14px;">
+  <strong>⚠️ Aviso:</strong> Este projeto foi desenvolvido com apoio de ferramentas de Inteligência Artificial, e todo o código foi posteriormente revisado e validado pelos autores.
+</div>
+
 Sistema de controle para um carrinho baseado em Raspberry Pi, comandado por um cliente em PC via TCP.
 O carrinho recebe:
 
-1. **Comandos manuais** por um “teclado de mouse” (numpad visual na tela).
+1. **Comandos manuais** por um "teclado de mouse" (numpad visual na tela).
 2. **Controle automático contínuo** para seguir um **quadrado de referência** visto pela câmera.
 3. **Scripts de movimento** disparados por **dígitos manuscritos (0–9)** desenhados dentro desse quadrado.
 
@@ -24,7 +28,26 @@ O carrinho recebe:
     -   Localiza, em múltiplas escalas, um template (`quadrado.png`) na cena.
     -   Controla o carrinho para manter o quadrado centralizado.
     -   Detecta dígitos manuscritos no interior do quadrado usando MNIST + FLANN/k-NN.
-    -   Envia, a cada frame, o comando apropriado ao servidor.
+    -   Envia, a cada frame, o comando apropriado ao servidor:
+
+        -   **1. Controle manual (teclado de mouse)**
+            Quando o usuário clica em uma célula do “numpad” visual (teclas 1–9), o cliente entra em modo de override manual e envia ao servidor **apenas 1 byte**:
+
+            -   `'<d>'` – caractere ASCII do dígito pressionado (`'1'` a `'9'`, eventualmente `'0'`/`'5'` como neutro).
+
+        -   **2. Scripts disparados por dígitos manuscritos**
+            Quando um dígito manuscrito (0–9) dentro do quadrado é reconhecido de forma estável, o cliente gera **um único comando de script** e, naquele frame, envia **2 bytes**:
+
+            -   `'D'` – cabeçalho indicando “comando de dígito/script”;
+            -   `'<d>'` – caractere ASCII do dígito reconhecido (`'0'` a `'9'`).
+                Nos frames seguintes, o cliente volta ao modo automático, enquanto o servidor executa o movimento temporizado correspondente.
+
+        -   **3. Seguimento automático do quadrado (controle contínuo)**
+            Na ausência de override manual ou de comando de dígito a disparar, o cliente opera em modo automático, calculando as potências das rodas esquerda/direita a partir da posição e do tamanho do quadrado na imagem.
+            Em cada frame, ele envia **3 bytes**:
+            -   `'A'` – cabeçalho de “controle analógico contínuo”;
+            -   `L` – valor `int8` em \[-100, 100\] para a roda esquerda;
+            -   `R` – valor `int8` em \[-100, 100\] para a roda direita.
 
 -   **`projeto.hpp` / `raspberry.hpp`**
     Infraestrutura compartilhada:
@@ -40,7 +63,7 @@ O carrinho recebe:
 
 ## Funcionalidades
 
-### 1. Controle manual – “teclado de mouse”
+### 1. Controle manual – "teclado de mouse"
 
 -   Janela principal:
     -   **Esquerda**: teclado visual 3×3 (layout numpad: 7–8–9 / 4–5–6 / 1–2–3).
@@ -80,7 +103,7 @@ O carrinho recebe:
     -   Realiza k-NN com `k=5` e votação de rótulos (0–9).
 -   Lógica de disparo:
     -   Um dígito só é considerado **estável** após N frames consecutivos com a mesma predição.
-    -   Um comando só pode ser disparado se o sistema estiver **“armado”** (sem dígito por M frames anteriores).
+    -   Um comando só pode ser disparado se o sistema estiver **"armado"** (sem dígito por M frames anteriores).
     -   Quando dispara, envia exatamente **uma vez** o dígito como comando de script (`'D'` + dígito) e desarma até não ver dígitos por um tempo.
 
 ## Protocolo de Comunicação
@@ -118,15 +141,15 @@ No servidor, `applyCommand(char cmd)` converte dígitos em ações de tanque nas
 
 | Dígito  | Ação (intuitiva)                            |
 | ------- | ------------------------------------------- |
-| `8`     | Avançar reto (ambas rodas para frente).     |
-| `2`     | Ré reta (ambas rodas para trás).            |
-| `4`     | Girar sobre o próprio eixo para a esquerda. |
-| `6`     | Girar sobre o próprio eixo para a direita.  |
 | `7`     | Curva suave frente-esquerda.                |
+| `8`     | Avançar reto (ambas rodas para frente).     |
 | `9`     | Curva suave frente-direita.                 |
+| `4`     | Girar sobre o próprio eixo para a esquerda. |
+| `5`/`0` | "Neutro" (não altera movimento atual).      |
+| `6`     | Girar sobre o próprio eixo para a direita.  |
 | `1`     | Curva suave ré-esquerda.                    |
+| `2`     | Ré reta (ambas rodas para trás).            |
 | `3`     | Curva suave ré-direita.                     |
-| `5`/`0` | “Neutro” (não altera movimento atual).      |
 
 ### 2. Scripts disparados por dígitos manuscritos
 
@@ -134,20 +157,20 @@ No servidor, `applyCommand(char cmd)` converte dígitos em ações de tanque nas
 
 Constantes principais:
 
--   `PASS_UNDER_MS = 1500` – tempo para “passar embaixo” (~1,5 s).
+-   `PASS_UNDER_MS = 1500` – tempo para "passar embaixo" (~1,5 s).
 -   `TURN90_MS = 550` – giro aproximado de 90°.
 -   `TURN180_MS = 1000` – giro aproximado de 180°.
 
 Mapeamento:
 
-| Dígito(s) | Script                                        |
-| --------- | --------------------------------------------- |
-| `0`, `1`  | Cancela qualquer script em andamento (para).  |
-| `4`, `5`  | Avança reto por `PASS_UNDER_MS`.              |
-| `6`, `7`  | Gira ~90° para um lado (combinação esq./dir). |
-| `8`, `9`  | Gira ~90° para o lado oposto.                 |
-| `2`       | Gira ~180° em um sentido.                     |
-| `3`       | Gira ~180° no sentido oposto.                 |
+| Dígito(s) | Script                                       |
+| --------- | -------------------------------------------- |
+| `0`, `1`  | Cancela qualquer script em andamento (para). |
+| `2`       | Gira ~180° à esquerda.                       |
+| `3`       | Gira ~180° à direita.                        |
+| `4`, `5`  | Avança reto por `PASS_UNDER_MS`.             |
+| `6`, `7`  | Gira ~90° à esquerda.                        |
+| `8`, `9`  | Gira ~90° à direita.                         |
 
 Enquanto um `TimedMotion` está ativo, ele tem prioridade sobre o controle analógico/teclado até expirar.
 
@@ -178,9 +201,7 @@ Enquanto um `TimedMotion` está ativo, ele tem prioridade sobre o controle anal�
 Exemplo (ajuste conforme seu ambiente OpenCV/wiringPi):
 
 ```bash
-g++ -std=c++17 server7.cpp -o server7 \
-    `pkg-config --cflags --libs opencv4` \
-    -lwiringPi
+compila server7 -ocv -v3
 ```
 
 Certifique-se de que `projeto.hpp` e `raspberry.hpp` estejam no `include path`.
@@ -190,12 +211,8 @@ Certifique-se de que `projeto.hpp` e `raspberry.hpp` estejam no `include path`.
 O próprio código indica uma linha de compilação típica:
 
 ```bash
-g++ -std=c++17 client7.cpp -o cliente4 \
-    `pkg-config --cflags --libs opencv4` \
-    -fopenmp
+compila client7 -ocv -v3 -omp
 ```
-
-> **Nota:** o executável é chamado de `cliente4` nos comentários; você pode renomear para algo mais descritivo, se desejar.
 
 ## Execução
 

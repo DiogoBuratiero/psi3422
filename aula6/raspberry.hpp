@@ -1,4 +1,9 @@
-// raspberry.hpp
+// raspberry.hpp - funções utilitárias básicas
+
+// Este código foi desenvolvido com o auxílio de ferramentas de Inteligência Artificial
+// para geração de texto, revisão, estruturação e otimização.
+// Todo o conteúdo foi verificado, ajustado e validado manualmente pelos autores.
+
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -118,7 +123,6 @@ void converte(Mat_<COR> ent, Mat_<FLT> &sai)
   ent.convertTo(temp, CV_32F, 1.0 / 255.0, 0.0);
   cvtColor(temp, sai, CV_BGR2GRAY);
 }
-
 
 template <class T>
 void copia(Mat_<T> ent, Mat_<T> &sai, int li, int ci)
@@ -254,7 +258,7 @@ Mat_<FLT> MNIST::bbox(Mat_<FLT> a)
   else
   {
     localizou = true;
-    Mat_<FLT> roi(a, Rect(esq, cima, dir - esq + 1, baixo - cima + 1)); 
+    Mat_<FLT> roi(a, Rect(esq, cima, dir - esq + 1, baixo - cima + 1));
     resize(roi, d, Size(nlado, nlado), 0, 0, INTER_AREA);
   }
   return d;
