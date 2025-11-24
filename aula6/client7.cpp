@@ -16,7 +16,7 @@
 using std::vector;
 
 // ---------- Estado do "teclado" por cursor ----------
-static int g_pressed = 0; // 0 nada; 1..9 enquanto cursor pressionado na célula
+static int g_pressed = 0; 
 static bool g_mouseDown = false;
 static int g_cols = 320, g_rows = 240;
 
@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
   char mode = (argc == 4 ? argv[3][0] : 't'); // 't' = grava tela; 'c' = só camera
 
 #ifdef _OPENMP
-  cv::setNumThreads(1); // evita competição com paralelismo interno do OpenCV
+  cv::setNumThreads(1);
 #endif
 
   CLIENT c(ip);
@@ -356,7 +356,7 @@ int main(int argc, char *argv[])
   std::printf("MNIST carregado: %d amostras de treino.\n", mnist.na);
 
   // ---------- Carrega modelo ----------
-  Mat_<COR> tempColor = imread("include/quadrado.png", 1); // ajuste o caminho se necessário
+  Mat_<COR> tempColor = imread("include/quadrado.png", 1); 
   if (tempColor.total() == 0)
     erro("Erro: nao encontrou quadrado.png");
   Mat_<FLT> Tfloat;
@@ -406,7 +406,7 @@ int main(int argc, char *argv[])
   auto clamp100 = [](int v)
   { return std::max(-100, std::min(100, v)); };
 
-  // filtros EMA para suavizar saídas (mais lerdos quando alvo grande)
+  // filtros EMA para suavizar saídas
   static float lFilt = 0.0f, rFilt = 0.0f;
 
   BYTE out = '0';
@@ -484,7 +484,7 @@ int main(int argc, char *argv[])
 
       // 2) ganho de esterço decresce com o tamanho
       float K_STEER_GAIN = (1.0f - alpha) * K_STEER_MAX + alpha * K_STEER_MIN;
-      float steer = K_STEER_GAIN * ex; // proporcional puro
+      float steer = K_STEER_GAIN * ex; 
 
       if (std::fabs(ex) < STEER_DEADZONE)
           steer = 0.0f;
@@ -676,7 +676,7 @@ int main(int argc, char *argv[])
     }
     else if (manualOverride)
     {
-      BYTE b = (BYTE)manualChar; // funcionamento original do teclado
+      BYTE b = (BYTE)manualChar; // funcionamento com teclado
       c.sendBytes(1, &b);
     }
     else

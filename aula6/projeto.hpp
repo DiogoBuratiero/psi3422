@@ -48,7 +48,6 @@ inline bool testaVb(const vector<BYTE> &vb, BYTE b)
 class DEVICE
 {
 public:
-  // helper compatível IPv4/IPv6
   static void *get_in_addr(struct sockaddr *sa)
   {
     if (sa->sa_family == AF_INET)
@@ -56,7 +55,6 @@ public:
     return &(((struct sockaddr_in6 *)sa)->sin6_addr);
   }
 
-  // Só as subclasses sabem "como" enviar/receber bytes
   virtual void sendBytes(int nBytesToSend, BYTE *buf) = 0;
   virtual void receiveBytes(int nBytesToReceive, BYTE *buf) = 0;
 
@@ -80,7 +78,6 @@ public:
     sendUint(static_cast<uint32_t>(vb.size()));
     if (!vb.empty())
     {
-      // const_cast é seguro aqui porque sendBytes não altera o conteúdo
       sendBytes((int)vb.size(), const_cast<BYTE *>(vb.data()));
     }
   }
@@ -120,7 +117,7 @@ public:
   {
     if (!img.isContinuous())
       erro("sendImgComp: imagem nao-contigua (evite ROI)");
-    // Compacta com qualidade 80 (exemplo da apostila)
+    // Compacta com qualidade 80 
     std::vector<uchar> vb;
     std::vector<int> params{cv::IMWRITE_JPEG_QUALITY, 80};
     if (!cv::imencode(".jpg", img, vb, params))
@@ -146,7 +143,6 @@ public:
     dec.copyTo(img); // garante Mat_<COR>
   }
 
-  // (Se quiser depois, dá pra adicionar sendImg/receiveImg usando OpenCV)
   virtual ~DEVICE() = default;
 };
 
@@ -235,7 +231,7 @@ public:
     }
   }
 
-  // IMPLEMENTAÇÕES CONCRETAS (obrigatórias)
+  // IMPLEMENTAÇÕES CONCRETAS 
   void sendBytes(int nBytesToSend, BYTE *buf) override
   {
     if (new_fd == -1)
@@ -321,7 +317,7 @@ public:
     }
   }
 
-  // IMPLEMENTAÇÕES CONCRETAS (obrigatórias)
+  // IMPLEMENTAÇÕES CONCRETAS
   void sendBytes(int nBytesToSend, BYTE *buf) override
   {
     if (sockfd == -1)

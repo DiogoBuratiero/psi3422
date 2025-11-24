@@ -110,7 +110,7 @@ static bool applyTimedMotion()
   return true;
 }
 
-// --------- comandos antigos (compatibilidade com override) ----------
+// --------- compatibilidade com override ----------
 static bool applyCommand(char cmd)
 {
   switch (cmd)
@@ -186,7 +186,7 @@ static bool handleDigitScript(char cmd)
   }
 }
 
-// --------- novo: aplica modo analógico contínuo (-100..+100) ----------
+// --------- aplica modo analógico contínuo (-100..+100) ----------
 static inline int clamp100(int v) { return std::max(-100, std::min(100, v)); }
 static void applyAnalog(int8_t l, int8_t r)
 {
@@ -235,7 +235,7 @@ int main()
   int8_t lastL = 0;
   int8_t lastR = 0;
 
-  // handshake inicial (compatA-vel)
+  // handshake inicial
   BYTE first;
   s.receiveBytes(1, &first);
   if (first == 's')

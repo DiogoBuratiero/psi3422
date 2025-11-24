@@ -27,7 +27,7 @@ void erro(string s1 = "")
 
 double timeSinceEpoch()
 {
-  // calculates the time elapsed since the epoch (typically January 1, 1970, for most systems)
+  // calculates the time elapsed since the epoch
   // in seconds as a floating-point number of type double.
   using namespace std::chrono;
   return duration_cast<duration<double>>(system_clock::now().time_since_epoch()).count();
@@ -36,7 +36,6 @@ double timeSinceEpoch()
 typedef uint8_t BYTE;
 typedef uint8_t GRY;
 
-//<<<<<<<<<<<<<<< A partir daqui, deve linkar com OpenCV (aula 3) <<<<<<<<<<<<<<<<<<
 #include <opencv2/opencv.hpp>
 using namespace cv;
 typedef Vec3b COR;
@@ -71,7 +70,6 @@ inline void ponto(Mat_<COR> &b, int l, int c, COR cor = COR(0, 0, 0), int t = 1)
   }
 }
 
-//<<<<<<<<<<<<<<<<<<< Definicoes da aula 4 <<<<<<<<<<<<<<<<<<<<<<<<<
 typedef float FLT;
 const double epsilon = FLT_EPSILON;
 
@@ -121,7 +119,6 @@ void converte(Mat_<COR> ent, Mat_<FLT> &sai)
   cvtColor(temp, sai, CV_BGR2GRAY);
 }
 
-//<<<<<<<<<<<<<<<<<<<<<< Definicoes da aula 5 <<<<<<<<<<<<<<<<<<<<<<<<<
 
 template <class T>
 void copia(Mat_<T> ent, Mat_<T> &sai, int li, int ci)
@@ -150,7 +147,7 @@ void copia(Mat_<T> ent, Mat_<T> &sai, int li, int ci)
   }
 }
 
-//<<<<<<<<<<<< MNIST <<<<<<<<<<<<<<<<<<<<<<<
+// MNIST
 class MNIST
 {
 public:
@@ -184,9 +181,7 @@ public:
   void leY(string nomeArq, int n, vector<int> &Y, Mat_<FLT> &y);       // f. interna
   void le(string caminho = "", int _na = 60000, int _nq = 10000);
   // Le banco de dados MNIST que fica no path caminho
-  // ex: mnist.le("."); mnist.le("c:/diretorio");
   // Se _na ou _nq for zero, nao le o respectivo
-  // ex: mnist.le(".",60000,0);
   int contaErros();
   Mat_<GRY> geraSaida(Mat_<GRY> q, int qy, int qp); // f. interna
   Mat_<GRY> geraSaidaErros(int maxErr = 0);
@@ -259,7 +254,7 @@ Mat_<FLT> MNIST::bbox(Mat_<FLT> a)
   else
   {
     localizou = true;
-    Mat_<FLT> roi(a, Rect(esq, cima, dir - esq + 1, baixo - cima + 1)); // Consertei 5/11/2019
+    Mat_<FLT> roi(a, Rect(esq, cima, dir - esq + 1, baixo - cima + 1)); 
     resize(roi, d, Size(nlado, nlado), 0, 0, INTER_AREA);
   }
   return d;
@@ -407,7 +402,6 @@ saida:
   return e;
 }
 
-//<<<<<<<<<<<<<<<<<<< MnistFlann <<<<<<<<<<<<<<<<<<<<<<<<<<<
 class MnistFlann : public MNIST
 {
 public:
@@ -421,7 +415,6 @@ public:
   void load(string nomeArq);
 };
 
-//<<<<<<<<<<<<<<<<<<< MnistFlann <<<<<<<<<<<<<<<<<<<<<<<<<<<
 void MnistFlann::train()
 {
   static flann::Index ind2(ax, flann::KDTreeIndexParams(4));
@@ -440,9 +433,6 @@ FLT MnistFlann::predictInterno(Mat_<FLT> query)
 FLT MnistFlann::predict(Mat_<FLT> query)
 {
   Mat_<FLT> t = bbox(query);
-  // xprint(t.isContinuous());
-  // t.reshape(1,1); xprint(t.size()); // Nao funciona por algum motivo
-  // return predictInterno(t);
   Mat_<FLT> t2(1, t.total());
   for (unsigned i = 0; i < t.total(); i++)
     t2(i) = t(i);
