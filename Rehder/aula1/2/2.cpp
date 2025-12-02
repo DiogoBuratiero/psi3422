@@ -75,12 +75,12 @@ int main()
 
                 if (cmd == 'L')
                 {
-                    led_remote = 1;
+                    led_remote = 0;
                     pc_printf(" -> LED remoto LIGADO\r\n");
                 }
                 else if (cmd == 'D')
                 {
-                    led_remote = 0;
+                    led_remote = 1;
                     pc_printf(" -> LED remoto DESLIGADO\r\n");
                 }
                 else
@@ -89,7 +89,7 @@ int main()
                 }
 
                 // Pisca o LED2 para indicar recepção
-                led_rx = !led_rx;
+                // led_rx = !led_rx;
             }
         }
     }
