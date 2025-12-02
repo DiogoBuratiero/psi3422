@@ -13,9 +13,6 @@ nRF24L01P my_nrf24l01p(PTD2, PTD3, PTC5, PTD0, PTD5, PTA13);
 // LED local apenas como indicação de transmissão
 DigitalOut led_tx(LED1);
 
-// Endereço RF (mesmo em ambas as placas)
-static const long long RF_ADDR = 0xE7E7E7E7E7LL;
-
 // Pequeno printf sobre BufferedSerial
 void pc_printf(const char *fmt, ...)
 {
@@ -47,9 +44,11 @@ int main()
     my_nrf24l01p.setAirDataRate(1000); // 1000 kbps = 1 Mbps
     my_nrf24l01p.setRfOutputPower(0);  // 0 dBm
 
-    // Mesmo endereço para TX e RX (pipe 0) nas duas placas
-    my_nrf24l01p.setTxAddress(RF_ADDR);
-    my_nrf24l01p.setRxAddress(RF_ADDR, NRF24L01P_PIPE_P0);
+    const long long TX_ADDR = 0xA1A1A1A1A1LL;
+    const long long RX_ADDR = 0xB1B1B1B1B1LL;
+
+    my_nrf24l01p.setTxAddress(TX_ADDR);
+    my_nrf24l01p.setRxAddress(RX_ADDR);
 
     my_nrf24l01p.setTransferSize(TRANSFER_SIZE);
     my_nrf24l01p.setTransmitMode();

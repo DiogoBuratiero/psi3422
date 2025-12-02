@@ -16,9 +16,6 @@ DigitalOut led_remote(LED1);
 // LED de indicação de recepção
 DigitalOut led_rx(LED2);
 
-// Mesmo endereço que a placa 1
-static const long long RF_ADDR = 0xE7E7E7E7E7LL;
-
 void pc_printf(const char *fmt, ...)
 {
     char buffer[128];
@@ -48,8 +45,11 @@ int main()
     my_nrf24l01p.setAirDataRate(1000); // 1 Mbps
     my_nrf24l01p.setRfOutputPower(0);  // 0 dBm
 
-    my_nrf24l01p.setTxAddress(RF_ADDR);
-    my_nrf24l01p.setRxAddress(RF_ADDR, NRF24L01P_PIPE_P0);
+    const long long TX_ADDR = 0xB1B1B1B1B1LL;
+    const long long RX_ADDR = 0xA1A1A1A1A1LL;
+
+    my_nrf24l01p.setTxAddress(TX_ADDR);
+    my_nrf24l01p.setRxAddress(RX_ADDR);
 
     my_nrf24l01p.setTransferSize(TRANSFER_SIZE);
     my_nrf24l01p.setReceiveMode();
