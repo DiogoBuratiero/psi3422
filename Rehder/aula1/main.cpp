@@ -49,6 +49,15 @@ int main() {
 
     // === CONFIGURAR FREQUÊNCIA AQUI ===
     my_nrf24l01p.setRfFrequency(2476);   // 2.476 GHz (canal 76, por exemplo)
+    my_nrf24l01p.setAirDataRate(NRF24L01P_DATARATE_1_MBPS);
+    my_nrf24l01p.setRfOutputPower(0);
+
+    const long long TX_ADDR = 0xA1A1A1A1A1LL;
+    const long long RX_ADDR = 0xB1B1B1B1B1LL;
+
+    my_nrf24l01p.setTxAddress(TX_ADDR);
+    my_nrf24l01p.setRxAddress(RX_ADDR);
+
 
     // Mostrar configuração atual do rádio
     pc_printf("nRF24L01+ Frequency    : %d MHz\r\n",  my_nrf24l01p.getRfFrequency());
