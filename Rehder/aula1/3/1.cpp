@@ -2,26 +2,30 @@
 #include "nRF24L01P.h"
 #include <cstdarg>
 
-static const int TRANSFER_SIZE = 1;                // 1 byte por comando
-static const long long RF_ADDR = 0xE7E7E7E7E7LL;  // endereço comum
+static const int TRANSFER_SIZE = 1;              // 1 byte por comando
+static const long long RF_ADDR = 0xE7E7E7E7E7LL; // endereço comum
 
 BufferedSerial pc(USBTX, USBRX, 115200);
 nRF24L01P radio(PTD2, PTD3, PTC5, PTD0, PTD5, PTA13); // mosi, miso, sck, csn, ce, irq
 DigitalOut ledTx(LED1);
 
-void pc_printf(const char *fmt, ...) {
+void pc_printf(const char *fmt, ...)
+{
     char buf[96];
     va_list ap;
     va_start(ap, fmt);
     int n = vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
-    if (n > 0) {
-        if (n > (int)sizeof(buf)) n = sizeof(buf);
+    if (n > 0)
+    {
+        if (n > (int)sizeof(buf))
+            n = sizeof(buf);
         pc.write(buf, n);
     }
 }
 
-void config_radio() {
+void config_radio()
+{
     radio.powerUp();
     thread_sleep_for(10);
 
@@ -41,7 +45,8 @@ void config_radio() {
     radio.enable();
 }
 
-int main() {
+int main()
+{
     char tx[TRANSFER_SIZE];
 
     pc_printf("\r\n=== Placa 1 (TX) – Controle dos motores ===\r\n");
@@ -52,17 +57,24 @@ int main() {
 
     config_radio();
 
-    while (true) {
-        if (!pc.readable()) continue;
+    while (true)
+    {
+        if (!pc.readable())
+            continue;
 
         char c;
-        if (pc.read(&c, 1) != 1) continue;
+        if (pc.read(&c, 1) != 1)
+            continue;
 
-        // eco simples no terminal
+        // Echo to terminal
         pc.write(&c, 1);
 
-        tx[0] = c;
+        // Replace invalid commands by STOP ('S')
+        char cmd = (c == 'D' || c == 'E' || c == 'B') ? c : 'S';
+
+        tx[0] = cmd;
         radio.write(NRF24L01P_PIPE_P0, tx, TRANSFER_SIZE);
+
         ledTx = !ledTx;
     }
 }
