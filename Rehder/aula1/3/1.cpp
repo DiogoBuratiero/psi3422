@@ -61,12 +61,8 @@ int main() {
         // eco simples no terminal
         pc.write(&c, 1);
 
-        if (c == 'D' || c == 'E' || c == 'B') {
-            tx[0] = c;
-            radio.write(NRF24L01P_PIPE_P0, tx, TRANSFER_SIZE);
-            ledTx = !ledTx;
-        } else {
-            pc_printf("\r\nUse apenas D, E ou B.\r\n");
-        }
+        tx[0] = c;
+        radio.write(NRF24L01P_PIPE_P0, tx, TRANSFER_SIZE);
+        ledTx = !ledTx;
     }
 }

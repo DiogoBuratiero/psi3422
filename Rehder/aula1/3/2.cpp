@@ -29,7 +29,7 @@ void pc_printf(const char *fmt, ...) {
 }
 
 // Motor A = direita
-inline void motorA_forward() { in1 = 1; in2 = 0; }
+inline void motorA_forward() { in1 = 0; in2 = 1; }
 inline void motorA_stop()    { in1 = 0; in2 = 0; }
 
 // Motor B = esquerda
