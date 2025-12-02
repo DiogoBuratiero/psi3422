@@ -26,15 +26,15 @@ void config_radio() {
     thread_sleep_for(10);
 
     // Configuração RF (deve ser idêntica na outra placa)
-    my_nrf24l01p.setRfFrequency(2476); // 2476 MHz
-    my_nrf24l01p.setAirDataRate(1000); // 1000 kbps = 1 Mbps
-    my_nrf24l01p.setRfOutputPower(0);  // 0 dBm
+    radio.setRfFrequency(2476); // 2476 MHz
+    radio.setAirDataRate(1000); // 1000 kbps = 1 Mbps
+    radio.setRfOutputPower(0);  // 0 dBm
 
     const long long TX_ADDR = 0xA1A1A1A1A1LL;
     const long long RX_ADDR = 0xB1B1B1B1B1LL;
 
-    my_nrf24l01p.setTxAddress(TX_ADDR);
-    my_nrf24l01p.setRxAddress(RX_ADDR);
+    radio.setTxAddress(TX_ADDR);
+    radio.setRxAddress(RX_ADDR);
 
     radio.setTransferSize(TRANSFER_SIZE);
     radio.setTransmitMode();
