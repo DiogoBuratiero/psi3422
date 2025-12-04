@@ -49,7 +49,7 @@ int main()
 {
     char tx[TRANSFER_SIZE];
 
-    pc_printf("\r\n=== Placa 1 (TX) – Controle dos motores ===\r\n");
+    pc_printf("\r\n=== Placa 1 (TX) - Controle dos motores ===\r\n");
     pc_printf("Comandos:\r\n");
     pc_printf("  D = motor direito\r\n");
     pc_printf("  E = motor esquerdo\r\n");
