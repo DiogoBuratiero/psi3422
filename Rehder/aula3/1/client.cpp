@@ -2,13 +2,13 @@
 #include "nRF24L01P.h"
 #include <cstdarg>
 
-static const int TRANSFER_SIZE = 8;              // bytes de telemetria (ex: "12.34")
-static const long long RF_ADDR = 0xE7E7E7E7E7LL; // não usamos diretamente, só para referência
+static const int TRANSFER_SIZE = 20;              // bytes de telemetria (ex: "R:12.34 L:11.90")
 
 BufferedSerial pc(USBTX, USBRX, 115200);
 nRF24L01P radio(PTD2, PTD3, PTC5, PTD0, PTD5, PTA13); // mosi, miso, sck, csn, ce, irq
 DigitalOut ledTx(LED1);
 
+// printf simplificado sobre BufferedSerial
 void pc_printf(const char *fmt, ...)
 {
     char buf[96];
@@ -18,8 +18,7 @@ void pc_printf(const char *fmt, ...)
     va_end(ap);
     if (n > 0)
     {
-        if (n > (int)sizeof(buf))
-            n = sizeof(buf);
+        if (n > (int)sizeof(buf)) n = sizeof(buf);
         pc.write(buf, n);
     }
 }
@@ -30,7 +29,7 @@ void config_radio()
     thread_sleep_for(10);
 
     // Configuração RF (mesmo canal, taxa e potência em ambas as placas)
-    radio.setRfFrequency(2476); // 2.476 MHz
+    radio.setRfFrequency(2476); // 2.476 GHz
     radio.setAirDataRate(1000); // 1000 kbps = 1 Mbps
     radio.setRfOutputPower(0);  // 0 dBm
 
@@ -45,7 +44,7 @@ void config_radio()
 
     radio.setTransferSize(TRANSFER_SIZE);
 
-    // Por padrão, o cliente fica em modo RX, recebendo distância
+    // Cliente fica em RX por padrão, aguardando telemetria
     radio.setReceiveMode();
     radio.enable();
 }
@@ -55,7 +54,7 @@ int main()
     char tx[TRANSFER_SIZE];
     char rx[TRANSFER_SIZE];
 
-    pc_printf("\r\n=== Placa 1 (CLIENTE) – Controle + Telemetria ===\r\n");
+    pc_printf("\r\n=== Placa 1 (CLIENTE) - Controle + Telemetria (duas rodas) ===\r\n");
     pc_printf("Comandos enviados ao carrinho:\r\n");
     pc_printf("  D = motor direito\r\n");
     pc_printf("  E = motor esquerdo\r\n");
@@ -66,7 +65,6 @@ int main()
 
     while (true)
     {
-
         // -------- 1) Ler comando do terminal e enviar ao servidor --------
         if (pc.readable())
         {
@@ -77,20 +75,14 @@ int main()
                 pc.write(&c, 1);
 
                 // Ignorar Enter (CR/LF)
-                if (c == '\r' || c == '\n')
-                {
-                    // não envia comando para o carrinho
-                }
-                else
+                if (c != '\r' && c != '\n')
                 {
                     // Mapeia outros caracteres para STOP
                     char cmd = (c == 'D' || c == 'E' || c == 'B') ? c : 'S';
 
-                    // Prepara payload: primeiro byte = comando, resto preenchido
+                    // Prepara payload: primeiro byte = comando, resto preenchido com 0
                     for (int i = 0; i < TRANSFER_SIZE; i++)
-                    {
                         tx[i] = 0;
-                    }
                     tx[0] = cmd;
 
                     // Muda para modo TX para enviar comando
@@ -106,21 +98,19 @@ int main()
             }
         }
 
-        // -------- 2) Receber distância do servidor e imprimir --------
+        // -------- 2) Receber telemetria (duas distâncias) do servidor --------
         if (radio.readable())
         {
             int n = radio.read(NRF24L01P_PIPE_P0, rx, TRANSFER_SIZE);
             if (n > 0)
             {
                 // Garante que rx é uma string terminada em '\0'
-                char dist_str[TRANSFER_SIZE + 1];
+                char telem[TRANSFER_SIZE + 1];
                 for (int i = 0; i < TRANSFER_SIZE; i++)
-                {
-                    dist_str[i] = rx[i];
-                }
-                dist_str[TRANSFER_SIZE] = '\0';
+                    telem[i] = rx[i];
+                telem[TRANSFER_SIZE] = '\0';
 
-                pc_printf("\r\n[DIST] %s cm\r\n", dist_str);
+                pc_printf("\r\n[DIST] %s cm\r\n", telem);
             }
         }
 
