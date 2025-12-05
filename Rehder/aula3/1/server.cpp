@@ -21,7 +21,7 @@ InterruptIn encoder(PTA1);
 volatile int32_t pulse_count = 0;
 
 // Calibração do encoder (ajuste a partir da medição real)
-static const float CM_PER_PULSE = 0.52f; // TODO: cm por pulso
+static const float CM_PER_PULSE = 0.69f; // cm por pulso
 
 // -------- PRINTF ----------
 void pc_printf(const char *fmt, ...) {
