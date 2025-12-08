@@ -14,16 +14,10 @@ nRF24L01P radio(PTD2, PTD3, PTC5, PTD0, PTD5, PTA13);
 DigitalOut ledRx(LED2);
 
 // Motores (L298N)
-// Motor A (direita): in1 = direção fixa, in2 = PWM
-DigitalOut in1(PTB0);
-PwmOut in2(PTB1);
-
-// Motor B (esquerda): in3 = direção fixa, in4 = PWM
-DigitalOut in3(PTB2);
-PwmOut in4(PTB3);
-
-// Duty global (ajuste aqui para “mais devagar”)
-static const float MOTOR_DUTY = 0.30f; // 0.0–1.0  (30% da tensão efetiva)
+DigitalOut in1(PTB0); // direita
+DigitalOut in2(PTB1);
+DigitalOut in3(PTB2); // esquerda
+DigitalOut in4(PTB3);
 
 // Encoders
 InterruptIn encRight(PTA5); // encoder roda direita
@@ -197,6 +191,26 @@ inline void ambos_stop()
     motorB_stop();
 }
 
+// Correção simples de retilinearidade baseada nos encoders
+static const float STRAIGHT_TOLERANCE_CM = 1.0f; // diferença máxima aceitável entre dL e dR
+
+inline void forward_with_correction(float dR, float dL)
+{
+    float diff = dL - dR; // positivo = esquerda mais adiantada
+
+    if (diff > STRAIGHT_TOLERANCE_CM)
+    {
+        // esquerda muito à frente -> pausa breve só a esquerda
+        motorA_forward(); // direita empurrando
+        motorB_stop();    // esquerda desligada momentaneamente
+    }
+    else
+    {
+        // dentro da tolerância -> anda com os dois motores
+        ambos_forward();
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Encoders
 // -----------------------------------------------------------------------------
@@ -275,10 +289,6 @@ int main()
 
     pc_printf("\r\n=== SERVIDOR - Motores + Encoders + Ultrassom ===\r\n");
 
-    // 5 kHz -> período de 200 us (valor típico para L298N)
-    in2.period_us(200);
-    in4.period_us(200);
-
     // Inicia timer de debounce dos encoders
     encDebounceTimer.start();
 
@@ -307,7 +317,7 @@ int main()
 
     sysTimer.start();
 
-    const int TELEMETRY_PERIOD_MS = 100; // período de envio de telemetria
+    const int TELEMETRY_PERIOD_MS = 300; // período de envio de telemetria
     const int ULTRASSOM_PERIOD_MS = 60;  // período de disparo do ultrassom
 
     int32_t cR = 0, cL = 0;
@@ -415,7 +425,8 @@ int main()
                 }
                 else
                 {
-                    ambos_forward();
+                    // Usa correção de retilinearidade
+                    forward_with_correction(dR, dL);
                 }
             }
             break;
@@ -432,7 +443,7 @@ int main()
             }
             else
             {
-                // girar 90° para a direita (direita para frente, esquerda ré)
+                // girar 90° para a direita (direita ré, esquerda frente)
                 motorA_backward();
                 motorB_forward();
             }
@@ -450,7 +461,8 @@ int main()
             }
             else
             {
-                ambos_forward();
+                // Usa correção de retilinearidade
+                forward_with_correction(dR, dL);
             }
             break;
 
@@ -475,19 +487,20 @@ int main()
         }
 
         case STATE_OBS_MOVE1:
-            // anda em linha reta com base no que faltava em X
-            if (dAvg >= obs_residualX)
+            // anda em linha reta a perna Y
+            if (dAvg >= targetY_cm)
             {
                 ambos_stop();
                 pc_printf("[OBS] MOVE1 (%.2f cm) concluido. Preparando curva à esquerda.\r\n",
-                          obs_residualX);
+                          targetY_cm);
                 reset_encoders();
                 turn_start_ms = sysTimer.read_ms();
                 state = STATE_OBS_TURN_LEFT;
             }
             else
             {
-                ambos_forward();
+                // Usa correção de retilinearidade
+                forward_with_correction(dR, dL);
             }
             break;
 
@@ -503,7 +516,7 @@ int main()
             }
             else
             {
-                // gira 90° à esquerda (direita ré, esquerda frente)
+                // gira 90° à esquerda (direita frente, esquerda ré)
                 motorA_forward();
                 motorB_backward();
             }
@@ -511,19 +524,20 @@ int main()
         }
 
         case STATE_OBS_MOVE2:
-            // anda em linha reta a perna Y original
-            if (dAvg >= targetY_cm)
+            // anda em linha reta a perna X original
+            if (dAvg >= obs_residualX)
             {
                 ambos_stop();
                 pc_printf("[OBS] MOVE2 (Y=%.2f cm) concluido. Fim da trajetória.\r\n",
-                          targetY_cm);
+                          obs_residualX);
                 reset_encoders();
                 obstacle_active = false;
                 state = STATE_IDLE;
             }
             else
             {
-                ambos_forward();
+                // Usa correção de retilinearidade
+                forward_with_correction(dR, dL);
             }
             break;
         }
@@ -578,7 +592,7 @@ int main()
             radio.write(NRF24L01P_PIPE_P0, txbuf, TRANSFER_SIZE);
 
             // Debug local no servidor (mantido)
-            pc_printf("[DIST] R_p=%ld  L_p=%ld  R=%s cm  L=%s cm  estado=%d  Obs=%s cm\r\n",
+            pc_printf("[DIST] R_p=%ld  L_p=%ld  R=%s cm  L=%s cm  estado=%d  Obs=%s cm\r",
                       (long)cR, (long)cL, sR, sL, (int)state, sObs);
 
             radio.setReceiveMode();
