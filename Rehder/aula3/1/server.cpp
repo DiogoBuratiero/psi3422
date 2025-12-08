@@ -16,8 +16,8 @@ DigitalOut in4(PTB3);
 
 // Encoders
 // Ajuste PTA1 / PTA2 para os pinos reais ligados aos sensores
-InterruptIn encRight(PTA1); // encoder roda direita
-InterruptIn encLeft(PTA2);  // encoder roda esquerda
+InterruptIn encRight(PTA5); // encoder roda direita
+InterruptIn encLeft(PTA1);  // encoder roda esquerda
 
 volatile int32_t pulse_right = 0;
 volatile int32_t pulse_left = 0;
