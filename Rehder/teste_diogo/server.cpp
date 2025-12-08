@@ -3,16 +3,16 @@
 #include <cstdarg>
 #include <cmath>
 
-static const int TRANSFER_SIZE = 20; // ex: "R:12.34 L:11.90"
+static const int TRANSFER_SIZE = 20;    // ex: "R:12.34 L:11.90"
 static const float AXLE_WIDTH = 155.0f; // mm
 
-float calculateTurnDistance(float angleDeg) {
-    float circumference = M_PI * AXLE_WIDTH;  // circunferência do círculo de giro das rodas
-    return (circumference * angleDeg) / 360.0f;
+float calculateTurnDistance(float angleDeg)
+{
+  float circumference = M_PI * AXLE_WIDTH; // circunferência do círculo de giro das rodas
+  return (circumference * angleDeg) / 360.0f;
 }
 
 static const float DIST_90_DEG = calculateTurnDistance(90.0f); // Constante para giro de 90 graus
-
 
 BufferedSerial pc(USBTX, USBRX, 115200);
 nRF24L01P radio(PTD2, PTD3, PTC5, PTD0, PTD5, PTA13);
@@ -37,74 +37,80 @@ static const float CM_PER_PULSE_RIGHT = 0.69f;
 static const float CM_PER_PULSE_LEFT = 0.69f;
 
 static const float MM_PER_PULSE_RIGHT = CM_PER_PULSE_RIGHT * 10.0f;
-static const float MM_PER_PULSE_LEFT  = CM_PER_PULSE_LEFT  * 10.0f;
+static const float MM_PER_PULSE_LEFT = CM_PER_PULSE_LEFT * 10.0f;
 
-// Estrutura da posição 
-struct Pose2D {
-    float x_mm;
-    float y_mm;
-    float theta_rad; // orientação em radianos
+// Estrutura da posição
+struct Pose2D
+{
+  float x_mm;
+  float y_mm;
+  float theta_rad; // orientação em radianos
 };
 
 // Odometro que guarda a posição do carrinho
-class Odometry {
+class Odometry
+{
 public:
-    Odometry(float axle_width_mm,
-             float mm_per_pulse_right,
-             float mm_per_pulse_left)
-        : axle_width_mm(axle_width_mm),
-          mm_per_pulse_right(mm_per_pulse_right),
-          mm_per_pulse_left(mm_per_pulse_left),
-          last_pulse_right(0),
-          last_pulse_left(0)
+  Odometry(float axle_width_mm,
+           float mm_per_pulse_right,
+           float mm_per_pulse_left)
+      : axle_width_mm(axle_width_mm),
+        mm_per_pulse_right(mm_per_pulse_right),
+        mm_per_pulse_left(mm_per_pulse_left),
+        last_pulse_right(0),
+        last_pulse_left(0)
+  {
+    pose.x_mm = 0.0f;
+    pose.y_mm = 0.0f;
+    pose.theta_rad = 0.0f;
+  }
+
+  // Chame periodicamente a partir da thread principal
+  void update(int32_t current_pulse_right, int32_t current_pulse_left)
+  {
+    int32_t dPR = current_pulse_right - last_pulse_right;
+    int32_t dPL = current_pulse_left - last_pulse_left;
+
+    last_pulse_right = current_pulse_right;
+    last_pulse_left = current_pulse_left;
+
+    float dR = dPR * mm_per_pulse_right;
+    float dL = dPL * mm_per_pulse_left;
+
+    float dCenter = (dR + dL) / 2.0f;
+    float dTheta = (dR - dL) / axle_width_mm; // em rad
+
+    float theta_mid = pose.theta_rad + dTheta * 0.5f;
+
+    pose.x_mm += dCenter * std::cos(theta_mid);
+    pose.y_mm += dCenter * std::sin(theta_mid);
+    pose.theta_rad += dTheta;
+
+    // Normaliza theta para -pi..pi (opcional)
+    if (pose.theta_rad > M_PI)
     {
-        pose.x_mm = 0.0f;
-        pose.y_mm = 0.0f;
-        pose.theta_rad = 0.0f;
+      pose.theta_rad -= 2.0f * M_PI;
     }
-
-    // Chame periodicamente a partir da thread principal
-    void update(int32_t current_pulse_right, int32_t current_pulse_left)
+    else if (pose.theta_rad < -M_PI)
     {
-        int32_t dPR = current_pulse_right - last_pulse_right;
-        int32_t dPL = current_pulse_left  - last_pulse_left;
-
-        last_pulse_right = current_pulse_right;
-        last_pulse_left  = current_pulse_left;
-
-        float dR = dPR * mm_per_pulse_right;
-        float dL = dPL * mm_per_pulse_left;
-
-        float dCenter = (dR + dL) / 2.0f;
-        float dTheta  = (dR - dL) / axle_width_mm; // em rad
-
-        float theta_mid = pose.theta_rad + dTheta * 0.5f;
-
-        pose.x_mm     += dCenter * std::cos(theta_mid);
-        pose.y_mm     += dCenter * std::sin(theta_mid);
-        pose.theta_rad += dTheta;
-
-        // Normaliza theta para -pi..pi (opcional)
-        if (pose.theta_rad > M_PI) {
-            pose.theta_rad -= 2.0f * M_PI;
-        } else if (pose.theta_rad < -M_PI) {
-            pose.theta_rad += 2.0f * M_PI;
-        }
+      pose.theta_rad += 2.0f * M_PI;
     }
+  }
 
-    Pose2D getPose() const {
-        return pose;
-    }
+  Pose2D getPose() const
+  {
+    return pose;
+  }
 
 private:
-    float axle_width_mm;
-    float mm_per_pulse_right;
-    float mm_per_pulse_left;
+  float axle_width_mm;
+  float mm_per_pulse_right;
+  float mm_per_pulse_left;
 
-    int32_t last_pulse_right;
-    int32_t last_pulse_left;
+  int32_t last_pulse_right;
+  int32_t last_pulse_left;
 
-    Pose2D pose;
+  Pose2D pose;
 };
 
 // -------- PRINTF ----------
@@ -134,7 +140,7 @@ void float_to_str(char *out, float v)
 }
 
 // -------- Motores ----------
- // direita
+// direita
 inline void motorA_forward()
 {
   in1 = 0;

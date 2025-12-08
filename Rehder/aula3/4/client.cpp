@@ -81,7 +81,7 @@ int main()
     pc_printf("\r\n=== CLIENTE - Coordenadas em L + Telemetria ===\r\n");
     pc_printf("Digite coordenadas alvo em cm como:\r\n");
     pc_printf("  X Y  (ex.: 30 40)\r\n");
-    pc_printf("O carrinho fará uma trajetória em L até (X,Y).\r\n\r\n");
+    pc_printf("O carrinho fará uma trajetória em L para chegar em (X,Y).\r\n\r\n");
 
     config_radio();
 
