@@ -44,9 +44,6 @@ volatile uint32_t echo_start_us = 0;
 volatile uint32_t echo_pulse_us = 0;
 volatile bool new_measure = false;
 
-// Última distância medida em cm (para ser usada na lógica do obstáculo)
-float last_dist_cm = 1000.0f;
-
 // Threshold de obstáculo em centímetros
 static const float OBSTACLE_THRESHOLD_CM = 20.0f; // ajuste conforme desejar
 
@@ -341,7 +338,6 @@ int main()
             float duration_us = (float)echo_pulse_us;
             // dist (cm) = (tempo_us * 0.0343) / 2 = tempo_us * 0.01715
             distObs_cm = duration_us * 0.01715f;
-            last_dist_cm = distObs_cm;
         }
 
         // -----------------------------------------------------------------
